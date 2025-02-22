@@ -342,18 +342,45 @@ function printDocument() {
         const element = document.createElement('div');
         element.innerHTML = printContent;
         
+        // Get container dimensions
+        const container = document.getElementById('imageContainer');
+        const width = container.offsetWidth;
+        const height = container.offsetHeight;
+
+        // Calculate PDF dimensions to match container aspect ratio
+        const pdfWidth = 210; // A4 width in mm
+        const pdfHeight = (height * pdfWidth) / width;
+
         html2pdf()
             .set({
-                margin: 1,
+                margin: 0,
                 filename: 'document.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+                image: { type: 'jpeg', quality: 1 },
+                html2canvas: {
+                    scale: 4, // Higher scale for better quality
+                    useCORS: true,
+                    logging: true,
+                    letterRendering: true,
+                    width: width,
+                    height: height,
+                    windowWidth: width,
+                    windowHeight: height
+                },
+                jsPDF: {
+                    unit: 'mm',
+                    format: [pdfWidth, pdfHeight],
+                    orientation: 'portrait',
+                    precision: 16
+                }
             })
             .from(element)
             .save()
             .then(() => {
                 document.body.removeChild(previewContainer);
+            })
+            .catch(err => {
+                console.error('PDF generation failed:', err);
+                alert('Failed to generate PDF. Please try again.');
             });
     });
 
