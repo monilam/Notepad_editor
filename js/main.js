@@ -333,32 +333,68 @@ function printDocument() {
 
     previewContainer.querySelector('.pdf-print').addEventListener('click', () => {
         const element = document.createElement('div');
-        element.innerHTML = printContent;
         
-        // Force A4 dimensions
-        element.style.width = A4_WIDTH_PX + 'px';
-        element.style.height = A4_HEIGHT_PX + 'px';
+        // Create A4 container with fixed dimensions
+        element.style.width = '210mm';  // A4 width
+        element.style.height = '297mm';  // A4 height
         element.style.position = 'relative';
         element.style.background = 'white';
+        element.style.margin = '0';
+        element.style.overflow = 'hidden';
 
-        // Scale text positions to A4
+        // Get the image container and its content
         const container = document.getElementById('imageContainer');
-        const scaleX = A4_WIDTH_PX / container.offsetWidth;
-        const scaleY = A4_HEIGHT_PX / container.offsetHeight;
+        const containerRect = container.getBoundingClientRect();
 
-        // Update text positions
-        const textElements = element.querySelectorAll('.text-overlay-print');
-        textElements.forEach(text => {
-            const left = parseFloat(text.style.left);
-            const top = parseFloat(text.style.top);
-            text.style.left = (left * scaleX) + 'px';
-            text.style.top = (top * scaleY) + 'px';
-            
-            // Scale font size
-            const fontSize = parseFloat(text.style.fontSize);
-            text.style.fontSize = (fontSize * scaleX) + 'px';
+        // Calculate scaling factors
+        const pxToMm = 0.264583333; // 1px = 0.264583333mm
+        const mmToPx = 3.779527559; // 1mm = 3.779527559px
+        
+        // A4 dimensions in pixels
+        const a4Width = 210 * mmToPx;
+        const a4Height = 297 * mmToPx;
+
+        // Calculate scale to fit content to A4
+        const scaleX = a4Width / containerRect.width;
+        const scaleY = a4Height / containerRect.height;
+        const scale = Math.min(scaleX, scaleY);
+
+        // Create content wrapper for scaling
+        const contentWrapper = document.createElement('div');
+        contentWrapper.style.transform = `scale(${scale})`;
+        contentWrapper.style.transformOrigin = 'top left';
+        contentWrapper.style.width = `${containerRect.width}px`;
+        contentWrapper.style.height = `${containerRect.height}px`;
+        contentWrapper.style.position = 'absolute';
+
+        // Add text elements with correct positioning
+        Array.from(document.querySelectorAll('.text-overlay')).forEach(box => {
+            const textContent = box.querySelector('.text-content');
+            if (!textContent || textContent.textContent === 'Enter text') return;
+
+            const boxRect = box.getBoundingClientRect();
+            const text = textContent.textContent.trim();
+            const styles = window.getComputedStyle(textContent);
+
+            const textElement = document.createElement('div');
+            textElement.textContent = text;
+            textElement.style.position = 'absolute';
+            textElement.style.left = `${boxRect.left - containerRect.left}px`;
+            textElement.style.top = `${boxRect.top - containerRect.top}px`;
+            textElement.style.color = styles.color;
+            textElement.style.fontSize = styles.fontSize;
+            textElement.style.fontFamily = styles.fontFamily;
+            textElement.style.lineHeight = styles.lineHeight;
+            textElement.style.textAlign = styles.textAlign;
+            textElement.style.whiteSpace = 'pre-wrap';
+            textElement.style.width = `${boxRect.width}px`;
+
+            contentWrapper.appendChild(textElement);
         });
 
+        element.appendChild(contentWrapper);
+
+        // Generate PDF with fixed A4 size
         html2pdf()
             .set({
                 margin: 0,
@@ -368,8 +404,8 @@ function printDocument() {
                     scale: 2,
                     useCORS: true,
                     letterRendering: true,
-                    width: A4_WIDTH_PX,
-                    height: A4_HEIGHT_PX
+                    width: element.offsetWidth,
+                    height: element.offsetHeight
                 },
                 jsPDF: {
                     unit: 'mm',
