@@ -14,29 +14,22 @@ document.getElementById('imageInput').addEventListener('change', function(e) {
             // Clear existing text boxes
             document.getElementById('editableLayer').innerHTML = '';
             
-            // Adjust image and container to A4 size
+            // Set container to A4 dimensions
+            const container = document.getElementById('imageContainer');
+            container.style.width = A4_WIDTH_PX + 'px';
+            container.style.height = A4_HEIGHT_PX + 'px';
+            
+            // Scale image to fit A4
             img.onload = function() {
-                const container = document.getElementById('imageContainer');
-                const editableLayer = document.getElementById('editableLayer');
-                
-                // Set container to A4 dimensions
-                container.style.width = A4_WIDTH + 'px';
-                container.style.height = A4_HEIGHT + 'px';
-                
-                // Scale image to fit A4 while maintaining aspect ratio
                 const imgAspectRatio = img.naturalWidth / img.naturalHeight;
-                const a4AspectRatio = A4_WIDTH / A4_HEIGHT;
+                const a4AspectRatio = A4_WIDTH_PX / A4_HEIGHT_PX;
                 
                 if (imgAspectRatio > a4AspectRatio) {
-                    // Image is wider than A4
-                    img.style.width = A4_WIDTH + 'px';
+                    img.style.width = '100%';
                     img.style.height = 'auto';
-                    img.style.marginTop = '0';
                 } else {
-                    // Image is taller than A4
-                    img.style.height = A4_HEIGHT + 'px';
                     img.style.width = 'auto';
-                    img.style.marginLeft = '0';
+                    img.style.height = '100%';
                 }
                 
                 // Center the image
@@ -44,10 +37,6 @@ document.getElementById('imageInput').addEventListener('change', function(e) {
                 img.style.left = '50%';
                 img.style.top = '50%';
                 img.style.transform = 'translate(-50%, -50%)';
-                
-                // Set editable layer to A4 size
-                editableLayer.style.width = A4_WIDTH + 'px';
-                editableLayer.style.height = A4_HEIGHT + 'px';
             };
         };
         reader.readAsDataURL(file);
@@ -63,8 +52,12 @@ let textBoxCounter = 0;
 const MIN_SPACING = 10; // Minimum space between text boxes
 
 // Add these constants at the top
-const A4_WIDTH = 794; // A4 width in pixels (roughly 210mm at 96dpi)
-const A4_HEIGHT = 1123; // A4 height in pixels (roughly 297mm at 96dpi)
+const A4_WIDTH_MM = 210;  // A4 width in millimeters
+const A4_HEIGHT_MM = 297; // A4 height in millimeters
+const DPI = 96;  // Standard screen DPI
+const MM_TO_PX = DPI / 25.4;  // Convert mm to px (25.4 mm = 1 inch)
+const A4_WIDTH_PX = Math.floor(A4_WIDTH_MM * MM_TO_PX);  // A4 width in pixels
+const A4_HEIGHT_PX = Math.floor(A4_HEIGHT_MM * MM_TO_PX); // A4 height in pixels
 
 function rotateImage(degrees) {
     const img = document.getElementById('uploadedImage');
@@ -342,14 +335,29 @@ function printDocument() {
         const element = document.createElement('div');
         element.innerHTML = printContent;
         
-        // Get container dimensions
-        const container = document.getElementById('imageContainer');
-        const width = container.offsetWidth;
-        const height = container.offsetHeight;
+        // Force A4 dimensions
+        element.style.width = A4_WIDTH_PX + 'px';
+        element.style.height = A4_HEIGHT_PX + 'px';
+        element.style.position = 'relative';
+        element.style.background = 'white';
 
-        // Calculate PDF dimensions to match container aspect ratio
-        const pdfWidth = 210; // A4 width in mm
-        const pdfHeight = (height * pdfWidth) / width;
+        // Scale text positions to A4
+        const container = document.getElementById('imageContainer');
+        const scaleX = A4_WIDTH_PX / container.offsetWidth;
+        const scaleY = A4_HEIGHT_PX / container.offsetHeight;
+
+        // Update text positions
+        const textElements = element.querySelectorAll('.text-overlay-print');
+        textElements.forEach(text => {
+            const left = parseFloat(text.style.left);
+            const top = parseFloat(text.style.top);
+            text.style.left = (left * scaleX) + 'px';
+            text.style.top = (top * scaleY) + 'px';
+            
+            // Scale font size
+            const fontSize = parseFloat(text.style.fontSize);
+            text.style.fontSize = (fontSize * scaleX) + 'px';
+        });
 
         html2pdf()
             .set({
@@ -357,20 +365,16 @@ function printDocument() {
                 filename: 'document.pdf',
                 image: { type: 'jpeg', quality: 1 },
                 html2canvas: {
-                    scale: 4, // Higher scale for better quality
+                    scale: 2,
                     useCORS: true,
-                    logging: true,
                     letterRendering: true,
-                    width: width,
-                    height: height,
-                    windowWidth: width,
-                    windowHeight: height
+                    width: A4_WIDTH_PX,
+                    height: A4_HEIGHT_PX
                 },
                 jsPDF: {
                     unit: 'mm',
-                    format: [pdfWidth, pdfHeight],
-                    orientation: 'portrait',
-                    precision: 16
+                    format: 'a4',
+                    orientation: 'portrait'
                 }
             })
             .from(element)
