@@ -14,22 +14,29 @@ document.getElementById('imageInput').addEventListener('change', function(e) {
             // Clear existing text boxes
             document.getElementById('editableLayer').innerHTML = '';
             
-            // Set container to A4 dimensions
-            const container = document.getElementById('imageContainer');
-            container.style.width = A4_WIDTH_PX + 'px';
-            container.style.height = A4_HEIGHT_PX + 'px';
-            
-            // Scale image to fit A4
+            // Adjust image and container to A4 size
             img.onload = function() {
+                const container = document.getElementById('imageContainer');
+                const editableLayer = document.getElementById('editableLayer');
+                
+                // Set container to A4 dimensions
+                container.style.width = A4_WIDTH + 'px';
+                container.style.height = A4_HEIGHT + 'px';
+                
+                // Scale image to fit A4 while maintaining aspect ratio
                 const imgAspectRatio = img.naturalWidth / img.naturalHeight;
-                const a4AspectRatio = A4_WIDTH_PX / A4_HEIGHT_PX;
+                const a4AspectRatio = A4_WIDTH / A4_HEIGHT;
                 
                 if (imgAspectRatio > a4AspectRatio) {
-                    img.style.width = '100%';
+                    // Image is wider than A4
+                    img.style.width = A4_WIDTH + 'px';
                     img.style.height = 'auto';
+                    img.style.marginTop = '0';
                 } else {
+                    // Image is taller than A4
+                    img.style.height = A4_HEIGHT + 'px';
                     img.style.width = 'auto';
-                    img.style.height = '100%';
+                    img.style.marginLeft = '0';
                 }
                 
                 // Center the image
@@ -37,6 +44,10 @@ document.getElementById('imageInput').addEventListener('change', function(e) {
                 img.style.left = '50%';
                 img.style.top = '50%';
                 img.style.transform = 'translate(-50%, -50%)';
+                
+                // Set editable layer to A4 size
+                editableLayer.style.width = A4_WIDTH + 'px';
+                editableLayer.style.height = A4_HEIGHT + 'px';
             };
         };
         reader.readAsDataURL(file);
@@ -52,12 +63,8 @@ let textBoxCounter = 0;
 const MIN_SPACING = 10; // Minimum space between text boxes
 
 // Add these constants at the top
-const A4_WIDTH_MM = 210;  // A4 width in millimeters
-const A4_HEIGHT_MM = 297; // A4 height in millimeters
-const DPI = 96;  // Standard screen DPI
-const MM_TO_PX = DPI / 25.4;  // Convert mm to px (25.4 mm = 1 inch)
-const A4_WIDTH_PX = Math.floor(A4_WIDTH_MM * MM_TO_PX);  // A4 width in pixels
-const A4_HEIGHT_PX = Math.floor(A4_HEIGHT_MM * MM_TO_PX); // A4 height in pixels
+const A4_WIDTH = 794; // A4 width in pixels (roughly 210mm at 96dpi)
+const A4_HEIGHT = 1123; // A4 height in pixels (roughly 297mm at 96dpi)
 
 function rotateImage(degrees) {
     const img = document.getElementById('uploadedImage');
@@ -320,141 +327,33 @@ function printDocument() {
     }
 
     previewContainer.querySelector('.web-print').addEventListener('click', () => {
-        const printContent = document.createElement('div');
-        printContent.style.cssText = `
-            width: 210mm;
-            height: 297mm;
-            position: relative;
-            background: white;
-            margin: 0;
-            padding: 0;
-        `;
-
-        // Clone the image container content
-        const container = document.getElementById('imageContainer');
-        const clone = container.cloneNode(true);
-        clone.style.width = '100%';
-        clone.style.height = '100%';
-        printContent.appendChild(clone);
-
-        // Create print window
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Print</title>
-                <style>
-                    @media print {
-                        body { margin: 0; }
-                        @page {
-                            size: A4;
-                            margin: 0;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                ${printContent.outerHTML}
-            </body>
-            </html>
+            <html><head><style>${style.textContent}</style></head>
+            <body><div class="print-container">${printContent}</div></body></html>
         `);
-
         printWindow.document.close();
-
-        // Wait for images to load before printing
-        setTimeout(() => {
-            printWindow.print();
-            setTimeout(() => {
-                printWindow.close();
-                document.body.removeChild(previewContainer);
-            }, 500);
-        }, 500);
+        printWindow.print();
+        printWindow.close();
+        document.body.removeChild(previewContainer);
     });
 
     previewContainer.querySelector('.pdf-print').addEventListener('click', () => {
-        // Create A4 container
         const element = document.createElement('div');
-        element.style.width = '210mm';
-        element.style.height = '297mm';
-        element.style.position = 'relative';
-        element.style.background = 'white';
-
-        // Get the image container
-        const container = document.getElementById('imageContainer');
-        const img = document.getElementById('uploadedImage');
+        element.innerHTML = printContent;
         
-        // Add image to PDF if it exists
-        if (img && img.src) {
-            const imgClone = img.cloneNode(true);
-            imgClone.style.width = '100%';
-            imgClone.style.height = '100%';
-            imgClone.style.objectFit = 'contain';
-            imgClone.style.position = 'absolute';
-            element.appendChild(imgClone);
-        }
-
-        // Add text overlays
-        const textOverlays = document.querySelectorAll('.text-overlay');
-        const containerRect = container.getBoundingClientRect();
-
-        textOverlays.forEach(box => {
-            const textContent = box.querySelector('.text-content');
-            if (!textContent || textContent.textContent === 'Enter text') return;
-
-            const boxRect = box.getBoundingClientRect();
-            const text = textContent.textContent.trim();
-            const styles = window.getComputedStyle(textContent);
-
-            // Calculate relative position
-            const relativeLeft = ((boxRect.left - containerRect.left) / containerRect.width) * 100;
-            const relativeTop = ((boxRect.top - containerRect.top) / containerRect.height) * 100;
-            const relativeWidth = (boxRect.width / containerRect.width) * 100;
-
-            const textDiv = document.createElement('div');
-            textDiv.textContent = text;
-            textDiv.style.cssText = `
-                position: absolute;
-                left: ${relativeLeft}%;
-                top: ${relativeTop}%;
-                width: ${relativeWidth}%;
-                color: ${styles.color};
-                font-family: ${styles.fontFamily};
-                font-size: ${styles.fontSize};
-                line-height: ${styles.lineHeight};
-                text-align: ${styles.textAlign};
-                white-space: pre-wrap;
-                word-wrap: break-word;
-            `;
-
-            element.appendChild(textDiv);
-        });
-
-        // Generate PDF
         html2pdf()
             .set({
-                margin: 0,
+                margin: 1,
                 filename: 'document.pdf',
-                image: { type: 'jpeg', quality: 1 },
-                html2canvas: {
-                    scale: 2,
-                    useCORS: true,
-                    letterRendering: true
-                },
-                jsPDF: {
-                    unit: 'mm',
-                    format: 'a4',
-                    orientation: 'portrait'
-                }
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
             })
             .from(element)
             .save()
             .then(() => {
                 document.body.removeChild(previewContainer);
-            })
-            .catch(err => {
-                console.error('PDF generation failed:', err);
-                alert('Failed to generate PDF. Please try again.');
             });
     });
 
