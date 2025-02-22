@@ -320,55 +320,85 @@ function printDocument() {
     }
 
     previewContainer.querySelector('.web-print').addEventListener('click', () => {
+        const printContent = document.createElement('div');
+        printContent.style.cssText = `
+            width: 210mm;
+            height: 297mm;
+            position: relative;
+            background: white;
+            margin: 0;
+            padding: 0;
+        `;
+
+        // Clone the image container content
+        const container = document.getElementById('imageContainer');
+        const clone = container.cloneNode(true);
+        clone.style.width = '100%';
+        clone.style.height = '100%';
+        printContent.appendChild(clone);
+
+        // Create print window
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
-            <html><head><style>${style.textContent}</style></head>
-            <body><div class="print-container">${printContent}</div></body></html>
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Print</title>
+                <style>
+                    @media print {
+                        body { margin: 0; }
+                        @page {
+                            size: A4;
+                            margin: 0;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                ${printContent.outerHTML}
+            </body>
+            </html>
         `);
+
         printWindow.document.close();
-        printWindow.print();
-        printWindow.close();
-        document.body.removeChild(previewContainer);
+
+        // Wait for images to load before printing
+        setTimeout(() => {
+            printWindow.print();
+            setTimeout(() => {
+                printWindow.close();
+                document.body.removeChild(previewContainer);
+            }, 500);
+        }, 500);
     });
 
     previewContainer.querySelector('.pdf-print').addEventListener('click', () => {
+        // Create A4 container
         const element = document.createElement('div');
-        
-        // Create A4 container with fixed dimensions
-        element.style.width = '210mm';  // A4 width
-        element.style.height = '297mm';  // A4 height
+        element.style.width = '210mm';
+        element.style.height = '297mm';
         element.style.position = 'relative';
         element.style.background = 'white';
-        element.style.margin = '0';
-        element.style.overflow = 'hidden';
 
-        // Get the image container and its content
+        // Get the image container
         const container = document.getElementById('imageContainer');
+        const img = document.getElementById('uploadedImage');
+        
+        // Add image to PDF if it exists
+        if (img && img.src) {
+            const imgClone = img.cloneNode(true);
+            imgClone.style.width = '100%';
+            imgClone.style.height = '100%';
+            imgClone.style.objectFit = 'contain';
+            imgClone.style.position = 'absolute';
+            element.appendChild(imgClone);
+        }
+
+        // Add text overlays
+        const textOverlays = document.querySelectorAll('.text-overlay');
         const containerRect = container.getBoundingClientRect();
 
-        // Calculate scaling factors
-        const pxToMm = 0.264583333; // 1px = 0.264583333mm
-        const mmToPx = 3.779527559; // 1mm = 3.779527559px
-        
-        // A4 dimensions in pixels
-        const a4Width = 210 * mmToPx;
-        const a4Height = 297 * mmToPx;
-
-        // Calculate scale to fit content to A4
-        const scaleX = a4Width / containerRect.width;
-        const scaleY = a4Height / containerRect.height;
-        const scale = Math.min(scaleX, scaleY);
-
-        // Create content wrapper for scaling
-        const contentWrapper = document.createElement('div');
-        contentWrapper.style.transform = `scale(${scale})`;
-        contentWrapper.style.transformOrigin = 'top left';
-        contentWrapper.style.width = `${containerRect.width}px`;
-        contentWrapper.style.height = `${containerRect.height}px`;
-        contentWrapper.style.position = 'absolute';
-
-        // Add text elements with correct positioning
-        Array.from(document.querySelectorAll('.text-overlay')).forEach(box => {
+        textOverlays.forEach(box => {
             const textContent = box.querySelector('.text-content');
             if (!textContent || textContent.textContent === 'Enter text') return;
 
@@ -376,25 +406,31 @@ function printDocument() {
             const text = textContent.textContent.trim();
             const styles = window.getComputedStyle(textContent);
 
-            const textElement = document.createElement('div');
-            textElement.textContent = text;
-            textElement.style.position = 'absolute';
-            textElement.style.left = `${boxRect.left - containerRect.left}px`;
-            textElement.style.top = `${boxRect.top - containerRect.top}px`;
-            textElement.style.color = styles.color;
-            textElement.style.fontSize = styles.fontSize;
-            textElement.style.fontFamily = styles.fontFamily;
-            textElement.style.lineHeight = styles.lineHeight;
-            textElement.style.textAlign = styles.textAlign;
-            textElement.style.whiteSpace = 'pre-wrap';
-            textElement.style.width = `${boxRect.width}px`;
+            // Calculate relative position
+            const relativeLeft = ((boxRect.left - containerRect.left) / containerRect.width) * 100;
+            const relativeTop = ((boxRect.top - containerRect.top) / containerRect.height) * 100;
+            const relativeWidth = (boxRect.width / containerRect.width) * 100;
 
-            contentWrapper.appendChild(textElement);
+            const textDiv = document.createElement('div');
+            textDiv.textContent = text;
+            textDiv.style.cssText = `
+                position: absolute;
+                left: ${relativeLeft}%;
+                top: ${relativeTop}%;
+                width: ${relativeWidth}%;
+                color: ${styles.color};
+                font-family: ${styles.fontFamily};
+                font-size: ${styles.fontSize};
+                line-height: ${styles.lineHeight};
+                text-align: ${styles.textAlign};
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            `;
+
+            element.appendChild(textDiv);
         });
 
-        element.appendChild(contentWrapper);
-
-        // Generate PDF with fixed A4 size
+        // Generate PDF
         html2pdf()
             .set({
                 margin: 0,
@@ -403,9 +439,7 @@ function printDocument() {
                 html2canvas: {
                     scale: 2,
                     useCORS: true,
-                    letterRendering: true,
-                    width: element.offsetWidth,
-                    height: element.offsetHeight
+                    letterRendering: true
                 },
                 jsPDF: {
                     unit: 'mm',
